@@ -1,0 +1,417 @@
+//MainScreen.tsx
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Dimensions,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  SafeAreaView,
+  Keyboard,
+} from 'react-native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import SlidingPanel from './SlidingPanel';
+
+const screenWidth = Dimensions.get('window').width;
+
+interface Message {
+  id: number;
+  text: string;
+  isUser: boolean;
+  timestamp: Date;
+}
+
+const MainScreen: React.FC = () => {
+  const navigation = useNavigation();
+  const route = useRoute();
+  const slideAnim = useRef(new Animated.Value(-320)).current;
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentCategory, setCurrentCategory] = useState('General Support');
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 1,
+      text: "Hello! I'm your AI mental health companion. How can I help you today?",
+      isUser: false,
+      timestamp: new Date(),
+    }
+  ]);
+  const [inputText, setInputText] = useState('');
+  const textInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    // Auto-focus the text input when component mounts
+    const timer = setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Listen for navigation params to update category
+useFocusEffect(
+  React.useCallback(() => {
+    const params = (route as any)?.params;
+    if (params?.selectedCategory) {
+      setCurrentCategory(params.selectedCategory);
+      // Clear the params after using them
+      navigation.setParams({ selectedCategory: undefined });
+    }
+  }, [navigation])
+);
+
+  const openPanel = () => {
+    // Dismiss keyboard when opening panel
+    Keyboard.dismiss();
+    setIsOpen(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closePanel = () => {
+    Animated.timing(slideAnim, {
+      toValue: -320,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => setIsOpen(false));
+  };
+
+  const handleNavigation = (screenName: string) => {
+    closePanel();
+    setTimeout(() => {
+      if (screenName === 'SwitchCategory') {
+        navigation.navigate(screenName as never, { 
+          currentCategory,
+          onCategorySelect: (category: string) => {
+            setCurrentCategory(category);
+          }
+        } as never);
+      } else {
+        navigation.navigate(screenName as never);
+      }
+    }, 300);
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setCurrentCategory(category);
+    closePanel();
+  };
+
+  const sendMessage = () => {
+    if (inputText.trim()) {
+      const newMessage: Message = {
+        id: messages.length + 1,
+        text: inputText.trim(),
+        isUser: true,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, newMessage]);
+      setInputText('');
+      
+      // Simulate AI response (for demo purposes)
+      setTimeout(() => {
+        const aiResponse: Message = {
+          id: messages.length + 2,
+          text: "Thank you for sharing. I'm here to listen and support you. Can you tell me more about how you're feeling?",
+          isUser: false,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiResponse]);
+      }, 1000);
+    }
+  };
+
+  const renderMessage = (message: Message) => (
+    <View key={message.id} style={[
+      styles.messageContainer,
+      message.isUser ? styles.userMessage : styles.aiMessage
+    ]}>
+      <Text style={[
+        styles.messageText,
+        message.isUser ? styles.userMessageText : styles.aiMessageText
+      ]}>
+        {message.text}
+      </Text>
+      <Text style={styles.timestamp}>
+        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </Text>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.menuButton} onPress={openPanel}>
+            <Text style={styles.menuText}>☰</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.categoryContainer}>
+            <Text style={styles.categoryLabel}>Category</Text>
+            <Text style={styles.categoryText} numberOfLines={1}>
+              {currentCategory}
+            </Text>
+          </View>
+          
+          <View style={styles.statusIndicator}>
+            <View style={styles.onlineIndicator} />
+            <Text style={styles.statusText}>Online</Text>
+          </View>
+        </View>
+
+        {/* Chat Area */}
+        <ScrollView 
+          style={styles.chatContainer}
+          contentContainerStyle={styles.chatContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {messages.map(renderMessage)}
+        </ScrollView>
+
+        {/* AI Branding */}
+        <View style={styles.aiBrandContainer}>
+          <Text style={styles.aiBrandText}>✨ MindCare AI Assistant</Text>
+        </View>
+
+        {/* Input Area */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            ref={textInputRef}
+            style={styles.textInput}
+            placeholder="Type your message here..."
+            placeholderTextColor="#8E8E93"
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={500}
+          />
+          <TouchableOpacity 
+            style={[styles.sendButton, inputText.trim() ? styles.sendButtonActive : null]}
+            onPress={sendMessage}
+            disabled={!inputText.trim()}
+          >
+            <Text style={styles.sendButtonText}>→</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Sliding panel */}
+        {isOpen && (
+          <SlidingPanel 
+            slideAnim={slideAnim} 
+            onNavigate={handleNavigation}
+          >
+            <TouchableOpacity
+              onPress={closePanel}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </SlidingPanel>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#1C1C1E',
+    borderBottomWidth: 1,
+    borderBottomColor: '#38383A',
+  },
+  menuButton: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 20,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  menuText: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  categoryContainer: {
+    alignItems: 'center',
+    flex: 1,
+    paddingHorizontal: 10,
+  },
+  categoryLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontWeight: '500',
+  },
+  categoryText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlineIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#30D158',
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#30D158',
+    fontWeight: '500',
+  },
+  chatContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  chatContent: {
+    padding: 20,
+    paddingBottom: 10,
+  },
+  messageContainer: {
+    marginVertical: 8,
+    maxWidth: '80%',
+  },
+  userMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#007AFF',
+    borderRadius: 20,
+    borderBottomRightRadius: 5,
+    padding: 12,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  aiMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 20,
+    borderBottomLeftRadius: 5,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  messageText: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  userMessageText: {
+    color: '#FFFFFF',
+  },
+  aiMessageText: {
+    color: '#FFFFFF',
+  },
+  timestamp: {
+    fontSize: 11,
+    color: '#8E8E93',
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  aiBrandContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#000000',
+  },
+  aiBrandText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontWeight: '500',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#1C1C1E',
+    borderTopWidth: 1,
+    borderTopColor: '#38383A',
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginRight: 12,
+    color: '#FFFFFF',
+    fontSize: 16,
+    maxHeight: 100,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  sendButton: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonActive: {
+    backgroundColor: '#007AFF',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sendButtonText: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 2000,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+});
+
+export default MainScreen;
