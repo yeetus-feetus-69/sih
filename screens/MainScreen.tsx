@@ -1,5 +1,6 @@
 //MainScreen.tsx
 import React, { useRef, useState, useEffect } from 'react';
+import { generateGeminiResponse } from '../backend/ai-service/geminiService';
 import {
   View,
   Text,
@@ -35,12 +36,13 @@ const MainScreen: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      text: "Hello! I'm your AI mental health companion. How can I help you today?",
+      text: "Hello! I'm here for you ❤️\nTell me what's on your mind.",
       isUser: false,
       timestamp: new Date(),
     }
   ]);
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const textInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -103,30 +105,52 @@ useFocusEffect(
     closePanel();
   };
 
-  const sendMessage = () => {
-    if (inputText.trim()) {
-      const newMessage: Message = {
-        id: messages.length + 1,
-        text: inputText.trim(),
-        isUser: true,
+  const sendMessage = async () => {
+  // Check if there's text and if the AI is not already responding
+  if (inputText.trim() && !isLoading) {
+    const userMessage: Message = {
+      id: Date.now(), // Use a timestamp for a simple unique ID
+      text: inputText.trim(),
+      isUser: true,
+      timestamp: new Date(),
+    };
+
+    // Add the user's message to the chat immediately
+    setMessages(prev => [...prev, userMessage]);
+    setInputText('');
+    setIsLoading(true); // Show a loading indicator
+
+    try {
+      // Call your Gemini service to get the AI's response
+      const responseText = await generateGeminiResponse(userMessage.text);
+
+      const aiResponse: Message = {
+        id: Date.now() + 1, // Add 1ms to ensure the ID is unique
+        text: responseText,
+        isUser: false,
         timestamp: new Date(),
       };
-      
-      setMessages(prev => [...prev, newMessage]);
-      setInputText('');
-      
-      // Simulate AI response (for demo purposes)
-      setTimeout(() => {
-        const aiResponse: Message = {
-          id: messages.length + 2,
-          text: "Thank you for sharing. I'm here to listen and support you. Can you tell me more about how you're feeling?",
-          isUser: false,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, aiResponse]);
-      }, 1000);
+
+      // Add the AI's response to the chat
+      setMessages(prev => [...prev, aiResponse]);
+
+    } catch (error) {
+      console.error("Failed to get Gemini response:", error);
+      // Create an error message to display in the chat
+      const errorResponse: Message = {
+        id: Date.now() + 1,
+        text: "Sorry, something went wrong. Please check your connection.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorResponse]);
+
+    } finally {
+      // This will run after the 'try' or 'catch' block is finished
+      setIsLoading(false); // Hide the loading indicator
     }
-  };
+  }
+};
 
   const renderMessage = (message: Message) => (
     <View key={message.id} style={[
@@ -179,9 +203,16 @@ useFocusEffect(
           {messages.map(renderMessage)}
         </ScrollView>
 
+        {/* Typing Indicator*/}
+        {isLoading && (
+          <View style={styles.aiMessage}>
+          <Text style={styles.aiMessageText}>Typing...</Text>
+          </View>
+        )}
+
         {/* AI Branding */}
         <View style={styles.aiBrandContainer}>
-          <Text style={styles.aiBrandText}>✨ MindCare AI Assistant</Text>
+          <Text style={styles.aiBrandText}>✨ Elevana AI Assistant</Text>
         </View>
 
         {/* Input Area */}
